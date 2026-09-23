@@ -5,3 +5,9 @@ tools/
 .classpath
 .project
 .settings/
+
+# Scan report outputs
+output/
+*.log
+scan-report.txt
+scan-report.html
