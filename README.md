@@ -55,6 +55,8 @@ pc/
 ├── mvnw.cmd                                    # Windows Maven execution wrapper
 ├── reboot-to-bios.cmd                          # One-click direct UEFI firmware reboot utility
 ├── optimize-storage.cmd                        # Post-migration pagefile cleanup & TRIM optimization
+├── setup-scratch-disk.cmd                      # Format legacy 500GB SSD (E:) as dedicated scratch drive
+├── archive-videos-to-f.cmd                     # Multi-threaded verified video archive offloader (J: -> F:)
 ├── pom.xml                                     # Project metadata, dependencies, and plugins
 ├── tools/
 │   └── apache-maven-3.9.9/                     # Embedded Maven installation

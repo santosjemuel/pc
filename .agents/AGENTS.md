@@ -15,6 +15,8 @@ A cross-platform Java utility powered by [OSHI (Operating System and Hardware In
 - **`tools/`**: Bundled portable Maven installation for environments without system-wide Maven.
 - **`reboot-to-bios.cmd`**: Windows batch helper to reboot directly into motherboard UEFI firmware.
 - **`optimize-storage.cmd`**: One-click elevated script to clean obsolete pagefile paths and trigger a manual TRIM pass on NVMe C:.
+- **`setup-scratch-disk.cmd`**: Utility to reformat legacy 500GB SSD (E:) into a dedicated high-speed scratch/cache drive.
+- **`archive-videos-to-f.cmd`**: Multi-threaded Robocopy utility to offload completed video archives from J: to 18TB F: drive with integrity verification.
 
 ---
 
