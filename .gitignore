@@ -11,3 +11,8 @@ output/
 *.log
 scan-report.txt
 scan-report.html
+
+# Local Machine & Private Agent State
+.agents/local.md
+.agents/*.local.*
+.agents/local/
