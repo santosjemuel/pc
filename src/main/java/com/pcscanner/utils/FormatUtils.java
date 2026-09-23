@@ -35,4 +35,12 @@ public class FormatUtils {
     public static void printRow(String label, String value) {
         System.out.printf("  %-25s : %s%n", label, value != null && !value.trim().isEmpty() ? value : "N/A");
     }
+
+    public static void printAdvisory(int index, String severity, String category, String title, String description, String action) {
+        System.out.printf("  [%d] [%s] %s%n", index, severity, title);
+        System.out.printf("      Category    : %s%n", category);
+        System.out.printf("      Details     : %s%n", description);
+        System.out.printf("      Action Plan : %s%n%n", action);
+    }
 }
+

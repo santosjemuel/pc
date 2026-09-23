@@ -60,6 +60,11 @@ public class Main {
         MemoryScanner.scan(si);
         GpuScanner.scan(si);
         DiskScanner.scan(si);
+        VolumeScanner.scan(si);
+
+        // Evaluate hardware health, known platform issues, and optimization opportunities
+        java.util.List<com.pcscanner.advisor.Advisory> advisories = com.pcscanner.advisor.HardwareAdvisor.evaluate(si);
+        AdvisorScanner.print(advisories);
 
         long elapsedTime = System.currentTimeMillis() - startTime;
         System.out.println("================================================================================");
@@ -80,7 +85,7 @@ public class Main {
         // Save HTML report
         File htmlReportFile = new File(outputDir, "scan-report.html");
         try {
-            HtmlReportGenerator.generate(si, elapsedTime, htmlReportFile);
+            HtmlReportGenerator.generate(si, advisories, elapsedTime, htmlReportFile);
         } catch (IOException e) {
             System.err.println("Failed to generate HTML report: " + e.getMessage());
         }

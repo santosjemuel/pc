@@ -1,8 +1,13 @@
 package com.pcscanner.reports;
 
+import com.pcscanner.advisor.Advisory;
+import com.pcscanner.advisor.HardwareAdvisor;
+import com.pcscanner.scanners.MotherboardScanner;
+import com.pcscanner.utils.DiskMetadataResolver;
 import com.pcscanner.utils.FormatUtils;
 import oshi.SystemInfo;
 import oshi.hardware.*;
+import oshi.software.os.OSFileStore;
 import oshi.software.os.OperatingSystem;
 
 import java.io.File;
@@ -22,6 +27,11 @@ public class HtmlReportGenerator {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     public static void generate(SystemInfo si, long elapsedTimeMs, File outputFile) throws IOException {
+        List<Advisory> advisories = HardwareAdvisor.evaluate(si);
+        generate(si, advisories, elapsedTimeMs, outputFile);
+    }
+
+    public static void generate(SystemInfo si, List<Advisory> advisories, long elapsedTimeMs, File outputFile) throws IOException {
         OperatingSystem os = si.getOperatingSystem();
         HardwareAbstractionLayer hal = si.getHardware();
         ComputerSystem computerSystem = hal.getComputerSystem();
@@ -29,6 +39,7 @@ public class HtmlReportGenerator {
         GlobalMemory memory = hal.getMemory();
         List<GraphicsCard> gpus = hal.getGraphicsCards();
         List<HWDiskStore> disks = hal.getDiskStores();
+        List<OSFileStore> fileStores = os.getFileSystem().getFileStores();
 
         long uptimeSeconds = os.getSystemUptime();
         long days = uptimeSeconds / 86400;
@@ -48,12 +59,16 @@ public class HtmlReportGenerator {
             totalDiskStorage += disk.getSize();
         }
 
-        StringBuilder html = new StringBuilder(16384);
+        Baseboard baseboard = computerSystem.getBaseboard();
+        Firmware firmware = computerSystem.getFirmware();
+        String resolvedMbModel = MotherboardScanner.resolveMotherboardModel(baseboard);
+
+        StringBuilder html = new StringBuilder(28672);
         html.append("<!DOCTYPE html>\n");
         html.append("<html lang=\"en\">\n<head>\n");
         html.append("  <meta charset=\"UTF-8\">\n");
         html.append("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-        html.append("  <title>PC Hardware Scan Report</title>\n");
+        html.append("  <title>PC Hardware Scan Report & Recommendations</title>\n");
         html.append("  <style>\n");
         html.append("    :root {\n");
         html.append("      --bg: #0b0f19;\n");
@@ -67,6 +82,7 @@ public class HtmlReportGenerator {
         html.append("      --accent-emerald: #34d399;\n");
         html.append("      --accent-purple: #c084fc;\n");
         html.append("      --accent-amber: #fbbf24;\n");
+        html.append("      --accent-red: #ef4444;\n");
         html.append("    }\n");
         html.append("    * { box-sizing: border-box; margin: 0; padding: 0; }\n");
         html.append("    body {\n");
@@ -138,6 +154,78 @@ public class HtmlReportGenerator {
         html.append("      color: var(--text-muted);\n");
         html.append("      margin-top: 4px;\n");
         html.append("    }\n");
+        html.append("    .section-title {\n");
+        html.append("      font-size: 1.25rem;\n");
+        html.append("      font-weight: 700;\n");
+        html.append("      margin-bottom: 16px;\n");
+        html.append("      display: flex;\n");
+        html.append("      align-items: center;\n");
+        html.append("      gap: 10px;\n");
+        html.append("    }\n");
+        html.append("    .advisories-container {\n");
+        html.append("      display: flex;\n");
+        html.append("      flex-direction: column;\n");
+        html.append("      gap: 16px;\n");
+        html.append("      margin-bottom: 32px;\n");
+        html.append("    }\n");
+        html.append("    .advisory-card {\n");
+        html.append("      background: var(--surface);\n");
+        html.append("      border: 1px solid var(--surface-border);\n");
+        html.append("      border-radius: 12px;\n");
+        html.append("      padding: 20px 22px;\n");
+        html.append("      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);\n");
+        html.append("    }\n");
+        html.append("    .advisory-card.severity-critical { border-left: 5px solid #ef4444; background: linear-gradient(90deg, rgba(239,68,68,0.06), var(--surface) 20%); }\n");
+        html.append("    .advisory-card.severity-warning { border-left: 5px solid #f59e0b; background: linear-gradient(90deg, rgba(245,158,11,0.06), var(--surface) 20%); }\n");
+        html.append("    .advisory-card.severity-optimization { border-left: 5px solid #38bdf8; background: linear-gradient(90deg, rgba(56,189,248,0.06), var(--surface) 20%); }\n");
+        html.append("    .advisory-card.severity-expansion { border-left: 5px solid #34d399; background: linear-gradient(90deg, rgba(52,211,153,0.06), var(--surface) 20%); }\n");
+        html.append("    .advisory-header {\n");
+        html.append("      display: flex;\n");
+        html.append("      align-items: center;\n");
+        html.append("      gap: 10px;\n");
+        html.append("      margin-bottom: 6px;\n");
+        html.append("      flex-wrap: wrap;\n");
+        html.append("    }\n");
+        html.append("    .advisory-pill {\n");
+        html.append("      font-size: 0.72rem;\n");
+        html.append("      font-weight: 700;\n");
+        html.append("      text-transform: uppercase;\n");
+        html.append("      letter-spacing: 0.05em;\n");
+        html.append("      padding: 3px 8px;\n");
+        html.append("      border-radius: 6px;\n");
+        html.append("    }\n");
+        html.append("    .pill-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); }\n");
+        html.append("    .pill-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); }\n");
+        html.append("    .pill-optimization { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); }\n");
+        html.append("    .pill-expansion { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.5); }\n");
+        html.append("    .advisory-category {\n");
+        html.append("      font-size: 0.8rem;\n");
+        html.append("      color: var(--text-muted);\n");
+        html.append("      text-transform: uppercase;\n");
+        html.append("      letter-spacing: 0.05em;\n");
+        html.append("    }\n");
+        html.append("    .advisory-title {\n");
+        html.append("      font-size: 1.05rem;\n");
+        html.append("      font-weight: 600;\n");
+        html.append("      color: var(--text-main);\n");
+        html.append("      margin: 4px 0 8px 0;\n");
+        html.append("    }\n");
+        html.append("    .advisory-desc {\n");
+        html.append("      font-size: 0.9rem;\n");
+        html.append("      color: #cbd5e1;\n");
+        html.append("      line-height: 1.6;\n");
+        html.append("    }\n");
+        html.append("    .action-box {\n");
+        html.append("      background: #090e17;\n");
+        html.append("      border: 1px solid #1e293b;\n");
+        html.append("      border-left: 3px solid var(--accent-blue);\n");
+        html.append("      border-radius: 8px;\n");
+        html.append("      padding: 12px 14px;\n");
+        html.append("      margin-top: 12px;\n");
+        html.append("      font-size: 0.88rem;\n");
+        html.append("      line-height: 1.5;\n");
+        html.append("    }\n");
+        html.append("    .action-box strong { color: var(--accent-blue); }\n");
         html.append("    .grid-2 {\n");
         html.append("      display: grid;\n");
         html.append("      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));\n");
@@ -153,6 +241,7 @@ public class HtmlReportGenerator {
         html.append("      border-radius: 12px;\n");
         html.append("      padding: 24px;\n");
         html.append("      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);\n");
+        html.append("      margin-bottom: 24px;\n");
         html.append("    }\n");
         html.append("    .panel-header {\n");
         html.append("      display: flex;\n");
@@ -201,6 +290,17 @@ public class HtmlReportGenerator {
         html.append("      color: var(--text-main);\n");
         html.append("      font-weight: 500;\n");
         html.append("    }\n");
+        html.append("    .tag {\n");
+        html.append("      font-size: 0.75rem;\n");
+        html.append("      padding: 2px 7px;\n");
+        html.append("      border-radius: 4px;\n");
+        html.append("      font-weight: 600;\n");
+        html.append("      text-transform: uppercase;\n");
+        html.append("    }\n");
+        html.append("    .tag-nvme { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }\n");
+        html.append("    .tag-sata { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }\n");
+        html.append("    .tag-usb { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); }\n");
+        html.append("    .tag-ok { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }\n");
         html.append("    .progress-bar-container {\n");
         html.append("      background: #1e293b;\n");
         html.append("      border-radius: 9999px;\n");
@@ -307,11 +407,34 @@ public class HtmlReportGenerator {
 
         html.append("  </section>\n");
 
+        // Advisories Section: Known Issues, Optimizations & Expansion
+        if (advisories != null && !advisories.isEmpty()) {
+            html.append("  <div class=\"section-title\">💡 Hardware Health, Known Issues & Optimizations (")
+                .append(advisories.size()).append(")</div>\n");
+            html.append("  <div class=\"advisories-container\">\n");
+            for (Advisory adv : advisories) {
+                String sevClass = "severity-" + adv.getSeverity().name().toLowerCase();
+                String pillClass = "pill-" + adv.getSeverity().name().toLowerCase();
+
+                html.append("    <div class=\"advisory-card ").append(sevClass).append("\">\n");
+                html.append("      <div class=\"advisory-header\">\n");
+                html.append("        <span class=\"advisory-pill ").append(pillClass).append("\">")
+                    .append(escape(adv.getSeverity().getLabel())).append("</span>\n");
+                html.append("        <span class=\"advisory-category\">").append(escape(adv.getCategory().getLabel())).append("</span>\n");
+                html.append("      </div>\n");
+                html.append("      <div class=\"advisory-title\">").append(escape(adv.getTitle())).append("</div>\n");
+                html.append("      <div class=\"advisory-desc\">").append(escape(adv.getDescription())).append("</div>\n");
+                html.append("      <div class=\"action-box\"><strong>Action Plan:</strong> ").append(formatActionPlan(adv.getAction())).append("</div>\n");
+                html.append("    </div>\n");
+            }
+            html.append("  </div>\n");
+        }
+
         // Grid Row 1: OS and Motherboard
         html.append("  <div class=\"grid-2\">\n");
 
         // Panel: OS
-        html.append("    <div class=\"panel\">\n");
+        html.append("    <div class=\"panel\" style=\"margin-bottom:0;\">\n");
         html.append("      <div class=\"panel-header\">\n");
         html.append("        <div class=\"panel-icon\">🖥️</div>\n");
         html.append("        <h2>Operating System</h2>\n");
@@ -329,9 +452,7 @@ public class HtmlReportGenerator {
         html.append("    </div>\n");
 
         // Panel: Motherboard & System
-        Baseboard baseboard = computerSystem.getBaseboard();
-        Firmware firmware = computerSystem.getFirmware();
-        html.append("    <div class=\"panel\">\n");
+        html.append("    <div class=\"panel\" style=\"margin-bottom:0;\">\n");
         html.append("      <div class=\"panel-header\">\n");
         html.append("        <div class=\"panel-icon\">🖲️</div>\n");
         html.append("        <h2>Motherboard & BIOS</h2>\n");
@@ -340,7 +461,7 @@ public class HtmlReportGenerator {
         appendRow(html, "System Model", computerSystem.getManufacturer() + " " + computerSystem.getModel());
         appendRow(html, "System Serial", computerSystem.getSerialNumber());
         appendRow(html, "Board Manufacturer", baseboard.getManufacturer());
-        appendRow(html, "Board Model", baseboard.getModel());
+        appendRow(html, "Board Model", resolvedMbModel);
         appendRow(html, "Board Version", baseboard.getVersion());
         appendRow(html, "Board Serial", baseboard.getSerialNumber());
         appendRow(html, "BIOS Vendor", firmware.getManufacturer());
@@ -356,7 +477,7 @@ public class HtmlReportGenerator {
 
         // Panel: CPU
         CentralProcessor.ProcessorIdentifier id = cpu.getProcessorIdentifier();
-        html.append("    <div class=\"panel\">\n");
+        html.append("    <div class=\"panel\" style=\"margin-bottom:0;\">\n");
         html.append("      <div class=\"panel-header\">\n");
         html.append("        <div class=\"panel-icon\">⚡</div>\n");
         html.append("        <h2>Processor (CPU)</h2>\n");
@@ -381,7 +502,7 @@ public class HtmlReportGenerator {
         // Panel: Memory
         VirtualMemory vm = memory.getVirtualMemory();
         List<PhysicalMemory> pmList = memory.getPhysicalMemory();
-        html.append("    <div class=\"panel\">\n");
+        html.append("    <div class=\"panel\" style=\"margin-bottom:0;\">\n");
         html.append("      <div class=\"panel-header\">\n");
         html.append("        <div class=\"panel-icon\">🧠</div>\n");
         html.append("        <h2>Memory (RAM)</h2>\n");
@@ -423,7 +544,7 @@ public class HtmlReportGenerator {
         html.append("  </div>\n");
 
         // Section: Graphics
-        html.append("  <div class=\"panel\" style=\"margin-bottom: 24px;\">\n");
+        html.append("  <div class=\"panel\">\n");
         html.append("    <div class=\"panel-header\">\n");
         html.append("      <div class=\"panel-icon\">🎮</div>\n");
         html.append("      <h2>Graphics Adapters (GPU)</h2>\n");
@@ -450,11 +571,11 @@ public class HtmlReportGenerator {
         }
         html.append("  </div>\n");
 
-        // Section: Storage
-        html.append("  <div class=\"panel\" style=\"margin-bottom: 24px;\">\n");
+        // Section: Physical Drives
+        html.append("  <div class=\"panel\">\n");
         html.append("    <div class=\"panel-header\">\n");
         html.append("      <div class=\"panel-icon\">💾</div>\n");
-        html.append("      <h2>Storage Drives & I/O Telemetry</h2>\n");
+        html.append("      <h2>Physical Storage Drives & I/O Telemetry</h2>\n");
         html.append("    </div>\n");
 
         if (disks.isEmpty()) {
@@ -464,7 +585,8 @@ public class HtmlReportGenerator {
             html.append("      <thead>\n");
             html.append("        <tr>\n");
             html.append("          <th>Drive</th>\n");
-            html.append("          <th>Serial Number</th>\n");
+            html.append("          <th>Interface</th>\n");
+            html.append("          <th>Health</th>\n");
             html.append("          <th>Capacity</th>\n");
             html.append("          <th>Reads</th>\n");
             html.append("          <th>Writes</th>\n");
@@ -473,11 +595,19 @@ public class HtmlReportGenerator {
             html.append("      <tbody>\n");
             int driveIdx = 1;
             for (HWDiskStore disk : disks) {
+                DiskMetadataResolver.DiskInfo info = DiskMetadataResolver.resolve(disk.getModel());
+                String busTagClass = "tag-sata";
+                if ("NVMe".equalsIgnoreCase(info.getBusType())) busTagClass = "tag-nvme";
+                else if ("USB".equalsIgnoreCase(info.getBusType())) busTagClass = "tag-usb";
+
                 html.append("        <tr>\n");
                 html.append("          <td><strong>#").append(driveIdx++).append("</strong> ")
-                    .append(escape(disk.getModel())).append("</td>\n");
-                html.append("          <td style=\"font-family: monospace; font-size:0.85rem;\">")
-                    .append(escape(disk.getSerial())).append("</td>\n");
+                    .append(escape(disk.getModel())).append("<br><span style=\"color:var(--text-muted); font-family:monospace; font-size:0.78rem;\">")
+                    .append(escape(disk.getSerial())).append("</span></td>\n");
+                html.append("          <td><span class=\"tag ").append(busTagClass).append("\">")
+                    .append(escape(info.getBusType())).append("</span></td>\n");
+                html.append("          <td><span class=\"tag tag-ok\">")
+                    .append(escape(info.getHealthStatus())).append("</span></td>\n");
                 html.append("          <td><strong>").append(FormatUtils.formatBytes(disk.getSize())).append("</strong></td>\n");
                 html.append("          <td>").append(disk.getReads()).append("<br><span style=\"color:var(--text-muted); font-size:0.8rem;\">(")
                     .append(FormatUtils.formatBytes(disk.getReadBytes())).append(")</span></td>\n");
@@ -490,6 +620,56 @@ public class HtmlReportGenerator {
         }
         html.append("  </div>\n");
 
+        // Section: Logical Volumes
+        if (fileStores != null && !fileStores.isEmpty()) {
+            html.append("  <div class=\"panel\">\n");
+            html.append("    <div class=\"panel-header\">\n");
+            html.append("      <div class=\"panel-icon\">📂</div>\n");
+            html.append("      <h2>Logical Volumes & Storage Partitions</h2>\n");
+            html.append("    </div>\n");
+            html.append("    <table class=\"data-table\">\n");
+            html.append("      <thead>\n");
+            html.append("        <tr>\n");
+            html.append("          <th>Mount</th>\n");
+            html.append("          <th>Volume Label</th>\n");
+            html.append("          <th>File System</th>\n");
+            html.append("          <th>Free Space</th>\n");
+            html.append("          <th>Total Size</th>\n");
+            html.append("          <th>Utilization</th>\n");
+            html.append("        </tr>\n");
+            html.append("      </thead>\n");
+            html.append("      <tbody>\n");
+            for (OSFileStore store : fileStores) {
+                long total = store.getTotalSpace();
+                if (total <= 0) continue;
+                long usable = store.getUsableSpace();
+                long used = total - usable;
+                double usedPercent = total > 0 ? (((double) used / total) * 100.0) : 0;
+                String label = store.getLabel() != null && !store.getLabel().trim().isEmpty() ? store.getLabel() : "Local Disk";
+
+                html.append("        <tr>\n");
+                html.append("          <td><strong>").append(escape(store.getMount())).append("</strong></td>\n");
+                html.append("          <td>").append(escape(label)).append("</td>\n");
+                html.append("          <td>").append(escape(store.getType())).append("</td>\n");
+                html.append("          <td><strong style=\"color:").append(usedPercent > 85 ? "#ef4444" : "#34d399").append(";\">")
+                    .append(FormatUtils.formatBytes(usable)).append("</strong></td>\n");
+                html.append("          <td>").append(FormatUtils.formatBytes(total)).append("</td>\n");
+                html.append("          <td style=\"width:25%;\">\n");
+                html.append("            <div style=\"font-size:0.8rem; display:flex; justify-content:space-between; margin-bottom:4px;\">")
+                    .append("<span>").append(String.format("%.1f%%", usedPercent)).append("</span>")
+                    .append("<span>").append(FormatUtils.formatBytes(used)).append("</span></div>\n");
+                html.append("            <div style=\"background:#1e293b; height:6px; border-radius:9999px; overflow:hidden;\">\n");
+                html.append("              <div style=\"background:").append(usedPercent > 85 ? "#ef4444" : "linear-gradient(90deg, #38bdf8, #818cf8)")
+                    .append("; height:100%; width:").append(String.format("%.1f", Math.min(100.0, usedPercent))).append("%;\"></div>\n");
+                html.append("            </div>\n");
+                html.append("          </td>\n");
+                html.append("        </tr>\n");
+            }
+            html.append("      </tbody>\n");
+            html.append("    </table>\n");
+            html.append("  </div>\n");
+        }
+
         // Footer
         html.append("  <footer>\n");
         html.append("    <div>Completed in ").append(elapsedTimeMs).append(" ms using OSHI System Information.</div>\n");
@@ -501,6 +681,13 @@ public class HtmlReportGenerator {
         try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8))) {
             writer.write(html.toString());
         }
+    }
+
+    private static String formatActionPlan(String action) {
+        if (action == null) return "N/A";
+        String escaped = escape(action);
+        // Replace http/https URLs with clickable links
+        return escaped.replaceAll("(https?://[^\\s\\)\"]+)", "<a href=\"$1\" target=\"_blank\" style=\"color:var(--accent-blue); text-decoration:underline; font-weight:600;\">$1</a>");
     }
 
     private static void appendRow(StringBuilder sb, String label, String value) {

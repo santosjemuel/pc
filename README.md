@@ -42,6 +42,7 @@ The scanner queries and presents information across six core areas:
 | **Memory (RAM)** | Physical & virtual memory utilization + DIMM inventory | Total, used, and available RAM, utilization %, virtual memory capacity & usage, per-stick physical slot breakdown (manufacturer, memory generation e.g. DDR4/DDR5, capacity, clock speed, bank label) |
 | **Graphics (GPU)** | Video controller and display adapters | Dedicated/integrated GPU name, vendor, driver version, VRAM capacity, hardware device ID |
 | **Storage (Disks)** | Physical storage drives and I/O telemetry | Drive model, serial number, storage capacity, lifetime read/write operations, and read/write byte throughput |
+| **Hardware Advisor** | Intelligent diagnostics, known issues & tuning | Intel 13th/14th Gen Vmin shift alerts, XMP/EXPO status, M.2 expansion slot tracking, mechanical HDD bottlenecks, SSD firmware wear checks |
 
 ---
 
@@ -52,21 +53,28 @@ The application is structured into modular scanner components orchestrated by th
 ```
 pc/
 ├── mvnw.cmd                                    # Windows Maven execution wrapper
+├── reboot-to-bios.cmd                          # One-click direct UEFI firmware reboot utility
 ├── pom.xml                                     # Project metadata, dependencies, and plugins
 ├── tools/
 │   └── apache-maven-3.9.9/                     # Embedded Maven installation
 └── src/main/java/com/pcscanner/
     ├── Main.java                               # Entrypoint: coordinates scanners, dual capture & reports
+    ├── advisor/
+    │   ├── Advisory.java                       # Advisory model with severity, category, and action plans
+    │   └── HardwareAdvisor.java                # Rule-based diagnostic & hardware optimization engine
     ├── reports/
     │   └── HtmlReportGenerator.java            # Generates self-contained HTML dashboard report
     ├── scanners/
+    │   ├── AdvisorScanner.java                 # Formats and prints advisories to console & text logs
     │   ├── OsScanner.java                      # Operating system, uptime, and process telemetry
-    │   ├── MotherboardScanner.java             # Baseboard, system chassis, and BIOS metadata
+    │   ├── MotherboardScanner.java             # Baseboard (with model fallback), chassis, and BIOS
     │   ├── CpuScanner.java                     # Central processor properties and core topology
     │   ├── MemoryScanner.java                  # RAM utilization and individual DIMM inspection
     │   ├── GpuScanner.java                     # Graphics adapters and video memory inspection
-    │   └── DiskScanner.java                    # Physical storage devices and I/O statistics
+    │   ├── DiskScanner.java                    # Physical storage devices, bus type, and I/O statistics
+    │   └── VolumeScanner.java                  # Mounted logical partitions and free space monitoring
     └── utils/
+        ├── DiskMetadataResolver.java           # Native Windows Get-PhysicalDisk SMART & bus resolver
         └── FormatUtils.java                    # Formatting helpers (bytes, Hz, percentages, tables)
 ```
 
