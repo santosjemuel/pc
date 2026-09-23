@@ -14,6 +14,7 @@ A cross-platform Java utility powered by [OSHI (Operating System and Hardware In
 - **`src/main/java/com/pcscanner/utils/`**: Utilities for system formatting, metric parsing, and Windows PowerShell CIM/WMI metadata resolution (e.g., bus interfaces and SMART health).
 - **`tools/`**: Bundled portable Maven installation for environments without system-wide Maven.
 - **`reboot-to-bios.cmd`**: Windows batch helper to reboot directly into motherboard UEFI firmware.
+- **`optimize-storage.cmd`**: One-click elevated script to clean obsolete pagefile paths and trigger a manual TRIM pass on NVMe C:.
 
 ---
 
@@ -27,6 +28,12 @@ mvnw.cmd clean package
 
 # Run with standard Maven (if installed on system PATH)
 mvn clean compile exec:java
+
+# Apply storage tweaks & re-trim NVMe drive
+optimize-storage.cmd
+
+# Reboot directly to UEFI BIOS
+reboot-to-bios.cmd
 ```
 
 ---

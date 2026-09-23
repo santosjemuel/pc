@@ -54,6 +54,7 @@ The application is structured into modular scanner components orchestrated by th
 pc/
 ├── mvnw.cmd                                    # Windows Maven execution wrapper
 ├── reboot-to-bios.cmd                          # One-click direct UEFI firmware reboot utility
+├── optimize-storage.cmd                        # Post-migration pagefile cleanup & TRIM optimization
 ├── pom.xml                                     # Project metadata, dependencies, and plugins
 ├── tools/
 │   └── apache-maven-3.9.9/                     # Embedded Maven installation
