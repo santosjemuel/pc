@@ -35,15 +35,7 @@ powershell -NoProfile -Command "& { Format-Volume -DriveLetter E -FileSystem NTF
 
 echo.
 echo Creating dedicated scratch and cache folders on E:\...
-powershell -NoProfile -Command "& {
-    $folders = @('E:\DaVinci_Cache', 'E:\Adobe_Scratch', 'E:\Temp_Downloads', 'E:\Build_Cache')
-    foreach ($f in $folders) {
-        if (-not (Test-Path $f)) {
-            New-Item -ItemType Directory -Path $f -Force | Out-Null
-            Write-Host \"  [OK] Created $f\" -ForegroundColor Cyan
-        }
-    }
-}"
+powershell -NoProfile -Command "New-Item -ItemType Directory -Path 'E:\DaVinci_Cache', 'E:\Adobe_Scratch', 'E:\Temp_Downloads', 'E:\Build_Cache' -Force | ForEach-Object { Write-Host ('  [OK] Ready: ' + $_.FullName) -ForegroundColor Cyan }"
 
 echo.
 echo ================================================================================
